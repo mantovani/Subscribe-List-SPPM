@@ -15,39 +15,89 @@ Version 0.01
 
 our $VERSION = '0.01';
 
+use Moose;
+use WWW::Mechanize;
+
+use MooseX::Types::Email qw/EmailAddress/;
+use MooseX::Types::Common::String qw/SimpleStr/;
+
+has 'mechanize' => (
+    is      => 'ro',
+    isa     => 'Object',
+    default => sub {
+        WWW::Mechanize->new(
+            stack_depth => 5,
+            onerror     => sub { shift->error(@_); }
+        );
+    }
+);
+
+has 'email'          => ( is => 'rw', isa => EmailAddress, required => 1 );
+has 'fullname'       => ( is => 'rw', isa => SimpleStr,    required => 1 );
+has 'passwd'         => ( is => 'rw', isa => SimpleStr,    required => 1 );
+has 'confirm_passwd' => ( is => 'rw', isa => SimpleStr,    required => 1 );
+
+has 'error' => ( is => 'rw', isa => SimpleStr );
+
+before 'subscribe' => sub {
+    my $self = shift;
+    if ( $self->passwd ne $self->confirm_passwd ) {
+        $self->error('The passwords are not equal');
+		die $self->error;
+    }
+
+    $self->mechanize->get('http://mail.pm.org/mailman/listinfo/saopaulo-pm');
+    if ( !$self->mechanize->success ) {
+        return;
+    }
+
+};
+
+sub subscribe {
+    my $self = shift;
+
+    $self->mechanize->submit_form(
+        form_number => 2,
+        fields      => {
+            'email'    => $self->email,
+            'fullname' => $self->fullname,
+            'pw'       => $self->passwd,
+            'pw-conf'  => $self->confirm_passwd,
+        }
+    );
+}
+
+after 'subscribe' => sub {
+    my $self = shift;
+    if ( $self->mechanize->content =~
+        /Your subscription request has been received/gi )
+    {
+        return 1;
+    }
+    else {
+        $self->error( $self->mechanize->content );
+        return;
+    }
+};
+111;
+
+__END__
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
+API to subcribe on SPPM.
 
     use Subscribe::List::SPPM;
 
-    my $foo = Subscribe::List::SPPM->new();
-    ...
+    my $slp = Subscribe::List::SPPM->new(
+        email          => 'foo@foo.com.br',
+        fullname       => 'My Name',
+        passwd         => 'mypasswd',
+        confirm_passwd => 'mypasswd',
+    );  
+    $slp->subscribe || die $slp->error;
 
-=head1 EXPORT
-
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
-
-=head1 SUBROUTINES/METHODS
-
-=head2 function1
-
-=cut
-
-sub function1 {
-}
-
-=head2 function2
-
-=cut
-
-sub function2 {
-}
-
+    
 =head1 AUTHOR
 
 Daniel de Oliveira Mantovani, C<< <daniel.oliveira.mantovani at gmail.com> >>
