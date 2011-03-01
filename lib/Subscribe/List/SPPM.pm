@@ -1,8 +1,5 @@
 package Subscribe::List::SPPM;
 
-use warnings;
-use strict;
-
 =head1 NAME
 
 Subscribe::List::SPPM - The great new Subscribe::List::SPPM!
